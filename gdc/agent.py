@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from .attention import Attention
 from .embeddings import Embedder
-from .entities import Goal, MemoryLevel, WMKind
+from .entities import Goal, GoalType, MemoryLevel, WMKind
 from .executive import Control, Executive
 from .llm import LLMBackend
 from .long_term_memory import LongTermMemory
@@ -49,6 +49,8 @@ class CognitiveAgent:
             print(line)
 
     def run(self, goal: Goal, max_cycles: int = 6) -> RunResult:
+        if max_cycles < 1:
+            raise ValueError(f"max_cycles must be >= 1, got {max_cycles}")
         self.executive.push_goal(goal)
         self._log(f"\n=== GOAL: {goal.description}  ({goal.goal_type.value}) ===")
         self._log(f"    success criteria: {goal.success_criteria}")
@@ -86,11 +88,16 @@ class CognitiveAgent:
                       f"(progress~{ev.progress:.2f}) — {ev.reason}")
 
             if ev.control == Control.ACT:
-                if not self.wm.by_kind(WMKind.DECISION):
+                existing_decision = self.wm.by_kind(WMKind.DECISION)
+                existing_facts = self.wm.by_kind(WMKind.FACT)
+                if existing_decision:
+                    decision = existing_decision[0].content
+                elif goal.goal_type == GoalType.LEARN and existing_facts:
+                    # a LEARN goal resolves into a generalisation, not an action
+                    decision = existing_facts[0].content
+                else:
                     decision = self.interaction.decide(self.wm, goal, cycle)
                     self._log(f"  [decide] {decision}")
-                else:
-                    decision = self.wm.by_kind(WMKind.DECISION)[0].content
                 self._consolidate(goal, decision, cycle)
                 break
 

@@ -86,19 +86,23 @@ class Executive:
                  max_cycles: int) -> Evaluation:
         has_decision = bool(wm.by_kind(WMKind.DECISION))
         n_hyp = len(wm.by_kind(WMKind.HYPOTHESIS))
+        n_facts = len(wm.by_kind(WMKind.FACT))
         n_refs = len(wm.refs())
 
-        # crude progress heuristic: knowledge in + a hypothesis formed + decided
-        progress = min(1.0, 0.25 * min(n_refs, 2) / 1.0 * 0.5
-                       + 0.3 * min(n_hyp, 1) + (0.5 if has_decision else 0.0))
-        progress = min(1.0, 0.2 * min(n_refs, 3) + 0.3 * min(n_hyp, 1)
+        # crude progress heuristic: knowledge in + a hypothesis/fact formed + decided
+        progress = min(1.0, 0.2 * min(n_refs, 3) + 0.3 * min(n_hyp + n_facts, 1)
                        + (0.5 if has_decision else 0.0))
 
         if has_decision:
             return Evaluation(Control.ACT, "A concrete decision is in working memory.",
                               progress)
+        # LEARN goals conclude with a generalisation, not a decision — recognise
+        # that as a resolution once enough knowledge has been drawn in.
+        if goal.goal_type == GoalType.LEARN and n_facts >= 1 and n_refs >= 2:
+            return Evaluation(Control.ACT, "A generalisation has been formed.",
+                              progress)
         if cycle >= max_cycles - 1:
-            return Evaluation(Control.ACT if n_hyp else Control.DONE,
+            return Evaluation(Control.ACT if (n_hyp or n_facts) else Control.DONE,
                               "Cycle budget exhausted; forcing resolution.", progress)
         # if we have knowledge and a hypothesis but no decision, switch strategy
         if n_hyp >= 1 and n_refs >= 2:
