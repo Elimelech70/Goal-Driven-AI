@@ -1,0 +1,16 @@
+{
+  "llm": {
+    "backend": "auto",
+    "model": "qwen2.5:7b-instruct-q4_K_M",
+    "host": "http://localhost:11434"
+  },
+  "embedder": {
+    "backend": "auto",
+    "model": "nomic-embed-text",
+    "host": "http://localhost:11434"
+  },
+  "agent": {
+    "wm_capacity": 9,
+    "max_cycles": 6
+  }
+}

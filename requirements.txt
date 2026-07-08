@@ -1,0 +1,13 @@
+# Core (required) — the cognitive architecture itself
+numpy>=1.24
+
+# Embeddings (recommended, self-contained, runs on your laptop GPU or CPU)
+# Installs torch; on Windows/Linux with CUDA this uses the GPU automatically.
+sentence-transformers>=2.6.0
+
+# No package is needed for the LLM: the OllamaBackend talks to a local Ollama
+# server over HTTP using only the standard library. Install Ollama separately
+# from https://ollama.com and `ollama pull` a model (see README).
+#
+# The whole system also runs with zero optional deps using the offline stub
+# backends — good for reading the control flow before wiring up the GPU.
