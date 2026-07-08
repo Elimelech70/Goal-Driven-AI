@@ -94,7 +94,7 @@ class MemoryNode:
     episodic: bool = False                      # True if hippocampus-consolidated
     created: float = field(default_factory=time.time)
     id: str = field(default_factory=lambda: _new_id("node"))
-    embedding: Optional[np.ndarray] = field(default=None, repr=False)
+    embedding: Optional[np.ndarray] = field(default=None, repr=False, compare=False)
 
     def embed_text(self) -> str:
         assoc = " ".join(f"{k}:{v}" for k, v in self.associations.items())

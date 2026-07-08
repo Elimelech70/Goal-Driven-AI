@@ -47,7 +47,6 @@ class Attention:
         already = {i.ref for i in wm.refs()}
         scored = []
         for node, relevance in candidates:
-            recency = cycle - 0  # nodes have no per-cycle history; treat as novel
             novelty = 1.0 if node.id not in already else 0.2
             importance = node.salience
             urgency = goal.urgency
