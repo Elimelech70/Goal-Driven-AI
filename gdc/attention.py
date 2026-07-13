@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .behaviour import Behaviour
 from .embeddings import Embedder
 from .entities import Goal, Strategy, WMItem, WMKind, MemoryLevel
 from .long_term_memory import LongTermMemory
@@ -26,9 +27,11 @@ class AttentionWeights:
 
 
 class Attention:
-    def __init__(self, embedder: Embedder, weights: AttentionWeights | None = None):
+    def __init__(self, embedder: Embedder, weights: AttentionWeights | None = None,
+                 behaviour: Behaviour | None = None):
         self.embedder = embedder
         self.w = weights or AttentionWeights()
+        self.behaviour = behaviour or Behaviour()
 
     def _query_embedding(self, goal: Goal, strategy: Strategy, wm: WorkingMemory) -> np.ndarray:
         parts = [goal.description, strategy.retrieval_focus]
@@ -45,13 +48,14 @@ class Attention:
         candidates = ltm.recall(q, k=k * 3)
 
         already = {i.ref for i in wm.refs()}
+        novelty_weight = max(0.0, self.w.novelty + self.behaviour.novelty_bias())
         scored = []
         for node, relevance in candidates:
             novelty = 1.0 if node.id not in already else 0.2
             importance = node.salience
             urgency = goal.urgency
             score = (self.w.relevance * relevance
-                     + self.w.novelty * novelty
+                     + novelty_weight * novelty
                      + self.w.importance * importance
                      + self.w.urgency * urgency)
             scored.append((node, score))

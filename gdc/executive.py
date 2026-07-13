@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from .archetype import Archetype
+from .behaviour import Behaviour
 from .entities import Goal, GoalType, Strategy, WMKind
 from .llm import LLMBackend
 from .working_memory import WorkingMemory
@@ -62,9 +64,12 @@ STRATEGY_LIBRARY: dict[GoalType, list[Strategy]] = {
 
 
 class Executive:
-    def __init__(self, llm: LLMBackend | None = None, use_llm_judge: bool = False):
+    def __init__(self, llm: LLMBackend | None = None, use_llm_judge: bool = False,
+                 archetype: Archetype | None = None, behaviour: Behaviour | None = None):
         self.llm = llm
         self.use_llm_judge = use_llm_judge
+        self.archetype = archetype
+        self.behaviour = behaviour or Behaviour()
         self.goal_stack: list[Goal] = []
 
     def push_goal(self, goal: Goal) -> None:
@@ -79,11 +84,24 @@ class Executive:
             return Strategy("default", "Retrieve, associate, hypothesise, decide.",
                             operations=["associate", "hypothesise", "decide"],
                             retrieval_focus=goal.description)
+        options = self._archetype_ordering(goal, options)
         return options[min(attempt, len(options) - 1)]
+
+    def _archetype_ordering(self, goal: Goal, options: list[Strategy]) -> list[Strategy]:
+        """Archetype biases which strategy is reached for first, without
+        removing any option — it narrows preference, not possibility."""
+        preferred = (self.archetype.preferred_strategies.get(goal.goal_type)
+                     if self.archetype else None)
+        if not preferred:
+            return options
+        by_name = {s.name: s for s in options}
+        ordered = [by_name[n] for n in preferred if n in by_name]
+        ordered += [s for s in options if s.name not in preferred]
+        return ordered
 
     # -- evaluation ---------------------------------------------------------
     def evaluate(self, goal: Goal, wm: WorkingMemory, cycle: int,
-                 max_cycles: int) -> Evaluation:
+                 max_cycles: int, cycles_in_strategy: int = 1) -> Evaluation:
         has_decision = bool(wm.by_kind(WMKind.DECISION))
         n_hyp = len(wm.by_kind(WMKind.HYPOTHESIS))
         n_facts = len(wm.by_kind(WMKind.FACT))
@@ -93,19 +111,25 @@ class Executive:
         progress = min(1.0, 0.2 * min(n_refs, 3) + 0.3 * min(n_hyp + n_facts, 1)
                        + (0.5 if has_decision else 0.0))
 
+        # methodical behaviour insists on walking the current strategy for a
+        # minimum number of cycles before it may be pivoted away from early
+        ready_to_pivot = cycles_in_strategy >= self.behaviour.min_cycles_before_pivot()
+        refs_needed = self.behaviour.refs_threshold()
+
         if has_decision:
             return Evaluation(Control.ACT, "A concrete decision is in working memory.",
                               progress)
         # LEARN goals conclude with a generalisation, not a decision — recognise
         # that as a resolution once enough knowledge has been drawn in.
-        if goal.goal_type == GoalType.LEARN and n_facts >= 1 and n_refs >= 2:
+        if goal.goal_type == GoalType.LEARN and n_facts >= 1 and n_refs >= refs_needed \
+                and ready_to_pivot:
             return Evaluation(Control.ACT, "A generalisation has been formed.",
                               progress)
         if cycle >= max_cycles - 1:
             return Evaluation(Control.ACT if (n_hyp or n_facts) else Control.DONE,
                               "Cycle budget exhausted; forcing resolution.", progress)
         # if we have knowledge and a hypothesis but no decision, switch strategy
-        if n_hyp >= 1 and n_refs >= 2:
+        if n_hyp >= 1 and n_refs >= refs_needed and ready_to_pivot:
             return Evaluation(Control.CHANGE_STRATEGY,
                               "Hypothesis formed; switch to compare-and-decide.",
                               progress)

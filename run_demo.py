@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import argparse
 
-from gdc import (CognitiveAgent, Goal, GoalType, LongTermMemory,
+from gdc import (CALM, CHAVER, CognitiveAgent, Goal, GoalType, LongTermMemory,
                  build_trading_memory, build_llm, build_embedder, load_config)
 
 
@@ -40,7 +40,8 @@ def main() -> None:
     build_trading_memory(ltm)
     print(f"[memory] seeded LTM -> {ltm.summary()}")
 
-    agent = CognitiveAgent(ltm, llm, embedder, wm_capacity=cfg.agent.wm_capacity, verbose=True)
+    agent = CognitiveAgent(ltm, llm, embedder, wm_capacity=cfg.agent.wm_capacity,
+                           verbose=True, name="Chaver", archetype=CHAVER, behaviour=CALM)
 
     # --- a SOLVE goal: exercises the full act/decide path ------------------
     solve = Goal(
@@ -53,7 +54,8 @@ def main() -> None:
     agent.run(solve, max_cycles=args.max_cycles)
 
     # --- a LEARN goal on a fresh workspace ---------------------------------
-    agent2 = CognitiveAgent(ltm, llm, embedder, wm_capacity=cfg.agent.wm_capacity, verbose=True)
+    agent2 = CognitiveAgent(ltm, llm, embedder, wm_capacity=cfg.agent.wm_capacity,
+                            verbose=True, name="Chaver", archetype=CHAVER, behaviour=CALM)
     learn = Goal(
         description="Learn what governs whether a momentum trade is safe",
         goal_type=GoalType.LEARN,

@@ -12,7 +12,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .archetype import Archetype
 from .attention import Attention
+from .behaviour import Behaviour
 from .embeddings import Embedder
 from .entities import Goal, GoalType, MemoryLevel, WMKind
 from .executive import Control, Executive
@@ -32,12 +34,16 @@ class RunResult:
 
 class CognitiveAgent:
     def __init__(self, ltm: LongTermMemory, llm: LLMBackend, embedder: Embedder,
-                 wm_capacity: int = 9, verbose: bool = True):
+                 wm_capacity: int = 9, verbose: bool = True, name: str = "agent",
+                 archetype: Archetype | None = None, behaviour: Behaviour | None = None):
+        self.name = name
+        self.archetype = archetype
+        self.behaviour = behaviour or Behaviour()
         self.ltm = ltm
         self.llm = llm
         self.embedder = embedder
-        self.executive = Executive(llm=llm)
-        self.attention = Attention(embedder)
+        self.executive = Executive(llm=llm, archetype=archetype, behaviour=self.behaviour)
+        self.attention = Attention(embedder, behaviour=self.behaviour)
         self.interaction = MemoryInteraction(ltm, llm, embedder)
         self.wm = WorkingMemory(capacity=wm_capacity)
         self.verbose = verbose
@@ -52,11 +58,14 @@ class CognitiveAgent:
         if max_cycles < 1:
             raise ValueError(f"max_cycles must be >= 1, got {max_cycles}")
         self.executive.push_goal(goal)
-        self._log(f"\n=== GOAL: {goal.description}  ({goal.goal_type.value}) ===")
+        archetype_note = f" [{self.archetype.name}]" if self.archetype else ""
+        self._log(f"\n=== {self.name}{archetype_note} — GOAL: {goal.description}  "
+                  f"({goal.goal_type.value}) ===")
         self._log(f"    success criteria: {goal.success_criteria}")
 
         strategy_attempt = 0
         strategy = self.executive.choose_strategy(goal, strategy_attempt)
+        strategy_started_cycle = 0
         self.wm.set_goal(goal.description, 0)
         self.wm.set_strategy(strategy.name, 0)
 
@@ -83,7 +92,9 @@ class CognitiveAgent:
             self._log(self.wm.render())
 
             # 4. EVALUATION: executive decides what happens next
-            ev = self.executive.evaluate(goal, self.wm, cycle, max_cycles)
+            cycles_in_strategy = cycle - strategy_started_cycle + 1
+            ev = self.executive.evaluate(goal, self.wm, cycle, max_cycles,
+                                          cycles_in_strategy)
             self._log(f"  evaluation: {ev.control.value} "
                       f"(progress~{ev.progress:.2f}) — {ev.reason}")
 
@@ -107,6 +118,7 @@ class CognitiveAgent:
             if ev.control == Control.CHANGE_STRATEGY:
                 strategy_attempt += 1
                 strategy = self.executive.choose_strategy(goal, strategy_attempt)
+                strategy_started_cycle = cycle + 1
                 self.wm.set_strategy(strategy.name, cycle)
 
             if ev.control == Control.LEARN:

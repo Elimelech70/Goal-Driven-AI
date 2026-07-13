@@ -11,7 +11,9 @@ from __future__ import annotations
 from typing import Optional
 
 from .agent import CognitiveAgent, RunResult
+from .archetype import Archetype, CHAVER
 from .attention import Attention, AttentionWeights
+from .behaviour import CALM, Behaviour
 from .config import AgentConfig, BackendConfig, Config, load_config
 from .embeddings import (Embedder, OllamaEmbedder, SentenceTransformerEmbedder,
                           StubEmbedder, cosine)
@@ -26,7 +28,9 @@ from .working_memory import WorkingMemory
 
 __all__ = [
     "CognitiveAgent", "RunResult",
+    "Archetype", "CHAVER",
     "Attention", "AttentionWeights",
+    "CALM", "Behaviour",
     "AgentConfig", "BackendConfig", "Config", "load_config",
     "Embedder", "OllamaEmbedder", "SentenceTransformerEmbedder", "StubEmbedder", "cosine",
     "Goal", "GoalStatus", "GoalType", "MemoryLevel", "MemoryNode", "Strategy", "WMItem", "WMKind",
